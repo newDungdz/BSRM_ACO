@@ -1,0 +1,35 @@
+Đề bài
+Có 𝑁 khách hàng 1, 2, … , 𝑁 cần được bảo trì mạng internet. Khách hàng 𝑖 ở địa điểm 𝑖 𝑖 = 1, … , 𝑁 .
+
+Việc bảo trì cho khách hàng 𝑖 kéo dài 𝑑(𝑖) đơn vị thời gian (𝑠). Có 𝐾 nhân viên kỹ thuật ở trụ sở công
+
+ty (điểm 0) và có thời điểm bắt đầu là việc là 𝑡0 = 0. Thời gian di chuyển từ điểm 𝑖 đến điểm 𝑗 là
+
+𝑡(𝑖, 𝑗). Lập kế hoạch phân công nhân viên thực hiện bảo trì cho các khách hàng sao cho thời gian
+
+làm việc nhiều nhất (thời gian di chuyển công thời gian bảo trì) của một nhân viên nào đó là nhỏ
+
+nhất
+
+A route of staff 𝑘 is represented by a sequence of points 𝑟[0], 𝑟[1], 𝑟[2], . . . , 𝑟[𝐿𝑘] in which 𝑟[0] =
+
+𝑟[𝐿𝑘] = 0 (the depot)
+
+• Input
+
+• Line 1: contains 𝑁 and 𝐾 (1 ≤ 𝑁 ≤ 1000, 1 ≤ 𝐾 ≤ 100)
+
+• Line 2: contains 𝑑(1), 𝑑(2), . . . , 𝑑(𝑁) (1 ≤ 𝑑(𝑖) ≤ 1000)
+
+• Line 𝑖 + 3 (𝑖 = 0, 1, 2, . . . , 𝑁): contains the ith row of the matrix 𝑡
+
+• Output
+
+• Line 1: contains K
+
+• Line 2𝑘 (𝑘 = 1, . . . , 𝐾): contains a positive integer 𝐿𝑘
+
+• Line 2𝑘 + 1 (𝑘 = 1, 2, . . . , 𝐾): contains 𝑟[0], 𝑟[1], 𝑟[2], . . . , 𝑟[𝐿𝑘]
+
+ 
+ 

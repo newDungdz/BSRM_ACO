@@ -1,0 +1,6 @@
+Cách kiến di chuyển: 
+- Nhân đôi điểm 0 thành K điểm 
+- Cho 1 con kiến (1 Xe) đi tìm các điểm khác rồi quay lại 1 trong các điểm ban đầu
+- Ngừng khi toàn bộ K điểm ban đầu được thăm
+-> Biến VRP thành na ná TSP
+
