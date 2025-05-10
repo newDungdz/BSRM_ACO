@@ -1,0 +1,12 @@
+3
+5
+0 2 1 7 9 0
+4
+0 3 5 8 0
+4
+0 4 10 6 0
+
+Number of Routes: 3, Max Cost: 71
+Route Costs: [66, 61, 71]
+
+Total Execution Time: 13.08 seconds

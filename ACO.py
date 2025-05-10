@@ -6,18 +6,16 @@ import time
 NUM_ANTS = 10    # Number of ants
 MAX_ITER = 500 # Maximum iterations
 TAU_0 = 0.01     # Initial pheromone
-PEN = 0.01      # Offset route penalty
 RHO = 0.1        # Evaporation rate
 BETA = 1         # Heuristic weight
-Q0_MIN = 0.1         # Exploitation probability min value
+Q0_MIN = 0.9       # Exploitation probability min value
 Q0 = Q0_MIN     # Exploitation probability 
 Q0_MAX = 0.9         # Exploitation probability max value
-Q0_STEP = (Q0_MAX - Q0_MIN) / 60  # Exploitation probability step
+Q0_STEP = (Q0_MAX - Q0_MIN) / 100  # Exploitation probability step
 MAX_TIME = 290  # Maximum time limit for the algorithm
 LOCAL_SEARCH = True # Use local search or not
 LOCAL_DILEMA = False # If stuck on local min
 
-best_average_cost = 8000
 begin_time = time.time()
 
 def calculate_route_cost(route, travel_time, service_time):
@@ -130,27 +128,8 @@ def ant_construct_solution(n, k, travel_time, service_time, pheromones, eta_matr
         new_cost = current_cost + travel + service
         
         # Local pheromone update
-        # pheromones[current][next_node] = (1 - RHO) * pheromones[current][next_node] + RHO * TAU_0
-        # if next_node == 0:
-        #     # Favor depot returns near target length
-        #     pheromone_delta = PEN * (1 + max(0, (average_customer - (len(current_route) - 1)) / average_customer))
-        #     pheromones[current][next_node] = (1 - RHO) * pheromones[current][next_node] + RHO * pheromone_delta
-        # else:
-        #     # Penalize customer moves beyond target
-        #     pheromone_delta = PEN * (1 - max(0, (len(current_route) - 1 - average_customer)) / average_customer)
-        #     pheromones[current][next_node] = (1 - RHO) * pheromones[current][next_node] + RHO * pheromone_delta
-        if next_node == 0:
-            # Favor depot returns near the best average cost
-            cost_diff = max(0, best_average_cost - new_cost)
-            pheromone_delta = PEN * (1 + cost_diff / best_average_cost)
-            pheromones[current][next_node] = (1 - RHO) * pheromones[current][next_node] + RHO * pheromone_delta
-        else:
-            # Penalize moves that cause route cost to exceed best_average
-            cost_excess = max(0, new_cost - best_average_cost)
-            pheromone_delta = PEN * (1 - cost_excess / best_average_cost)
-            pheromones[current][next_node] = (1 - RHO) * pheromones[current][next_node] + RHO * pheromone_delta
-
-
+        pheromones[current][next_node] = (1 - RHO) * pheromones[current][next_node] + RHO * TAU_0
+        
         if next_node == 0:
             return_depot()
         else:
@@ -182,98 +161,55 @@ def local_search(solution, travel_time, service_time):
     left = 0
     right = n_routes - 1
     swapped_pairs = set()
-    
-    if LOCAL_DILEMA:
-        # Try all possible swaps between every route pair
-        for i in range(n_routes):
-            for j in range(i + 1, n_routes):
-                route_i = solution[i][1:-1]  # Exclude depots
-                route_j = solution[j][1:-1]  # Exclude depots
 
-                if not route_i or not route_j:
-                    continue
+    while left < right:
+        i = sorted_indices[right]  # higher cost route
+        j = sorted_indices[left]   # lower cost route
 
-                for ni in route_i:
-                    for nj in route_j:
-                        pair = tuple(sorted((ni, nj)))
-                        if pair in swapped_pairs:
-                            continue
-                        swapped_pairs.add(pair)
-
-                        new_route_i = [0] + [n if n != ni else nj for n in route_i] + [0]
-                        new_route_j = [0] + [n if n != nj else ni for n in route_j] + [0]
-                        new_solution = [r.copy() for r in solution]
-                        new_solution[i] = new_route_i
-                        new_solution[j] = new_route_j
-
-                        cost_i = calculate_route_cost(new_route_i, travel_time, service_time)
-                        cost_j = calculate_route_cost(new_route_j, travel_time, service_time)
-
-                        new_costs = []
-                        for k in range(n_routes):
-                            if k == i:
-                                new_costs.append(cost_i)
-                            elif k == j:
-                                new_costs.append(cost_j)
-                            else:
-                                new_costs.append(route_cost_cache[k])
-
-                        max_cost = max(new_costs)
-                        if max_cost < best_max_cost:
-                            best_solution = new_solution
-                            best_costs = new_costs
-                            best_max_cost = max_cost
-                            route_cost_cache[i] = cost_i
-                            route_cost_cache[j] = cost_j
-    else:
-        while left < right:
-            i = sorted_indices[right]  # higher cost route
-            j = sorted_indices[left]   # lower cost route
-
-            route_i = solution[i][1:-1]
-            route_j = solution[j][1:-1]
-            if not route_i or not route_j:
-                left += 1
-                right -= 1
-                continue
-            # Limit swap attempts per pair
-            swap_attempts = min(10, len(route_i) // 2)
-            for _ in range(swap_attempts):
-                ni = max(route_i, key=lambda c: service_time[c])
-                nj = random.choice(route_j)
-                pair = tuple(sorted((ni, nj)))
-                if pair in swapped_pairs:
-                    continue
-                swapped_pairs.add(pair)
-
-                new_route_i = [0] + [n if n != ni else nj for n in route_i] + [0]
-                new_route_j = [0] + [n if n != nj else ni for n in route_j] + [0]
-                new_solution = solution.copy()
-                new_solution[i] = new_route_i
-                new_solution[j] = new_route_j
-
-                cost_i = calculate_route_cost(new_route_i, travel_time, service_time)
-                cost_j = calculate_route_cost(new_route_j, travel_time, service_time)
-
-                new_costs = []
-                for k in range(n_routes):
-                    if k == i:
-                        new_costs.append(cost_i)
-                    elif k == j:
-                        new_costs.append(cost_j)
-                    else:
-                        new_costs.append(route_cost_cache[k])
-
-                max_cost = max(new_costs)
-                if max_cost < best_max_cost:
-                    best_solution = new_solution
-                    best_costs = new_costs
-                    best_max_cost = max_cost
-                    route_cost_cache[i] = cost_i
-                    route_cost_cache[j] = cost_j
-
+        route_i = solution[i][1:-1]
+        route_j = solution[j][1:-1]
+        if not route_i or not route_j:
             left += 1
             right -= 1
+            continue
+        # Limit swap attempts per pair
+        swap_attempts = min(10, len(route_i) // 2) * (3 if LOCAL_DILEMA else 1)
+        for _ in range(swap_attempts):
+            ni = max(route_i, key=lambda c: service_time[c])
+            nj = random.choice(route_j)
+            pair = tuple(sorted((ni, nj)))
+            if pair in swapped_pairs:
+                continue
+            swapped_pairs.add(pair)
+
+            new_route_i = [0] + [n if n != ni else nj for n in route_i] + [0]
+            new_route_j = [0] + [n if n != nj else ni for n in route_j] + [0]
+            new_solution = solution.copy()
+            new_solution[i] = new_route_i
+            new_solution[j] = new_route_j
+
+            cost_i = calculate_route_cost(new_route_i, travel_time, service_time)
+            cost_j = calculate_route_cost(new_route_j, travel_time, service_time)
+
+            new_costs = []
+            for k in range(n_routes):
+                if k == i:
+                    new_costs.append(cost_i)
+                elif k == j:
+                    new_costs.append(cost_j)
+                else:
+                    new_costs.append(route_cost_cache[k])
+
+            max_cost = max(new_costs)
+            if max_cost < best_max_cost:
+                best_solution = new_solution
+                best_costs = new_costs
+                best_max_cost = max_cost
+                route_cost_cache[i] = cost_i
+                route_cost_cache[j] = cost_j
+
+        left += 1
+        right -= 1
 
 
     # --- Relocate move from most time consuming route to others ---
@@ -355,26 +291,25 @@ def acs_vrp(n, k, travel_time, service_time):
                 current_best_max_cost = max_cost
                 current_best_cost = costs
                 current_best_solution = solution
-                current_average = sum(costs) / k
             best_buffer = 1
         if current_best_max_cost < best_max_cost * best_buffer:
             best_solution = current_best_solution
             best_max_cost = current_best_max_cost
-            best_average_cost = current_average
             unchange_iter = 0
             LOCAL_DILEMA = False
         else:
             unchange_iter += 1
-            if(unchange_iter > 30): 
+            if(unchange_iter > 20): 
                 LOCAL_DILEMA = True
-            if(time.time() - begin_time < MAX_TIME - 10):
+                # Q0 = Q0_MIN
+            if(time.time() - begin_time >= MAX_TIME - 10):
                 LOCAL_DILEMA = False
     
         
         # Print the current best solution and its cost
-        # print(f"Iteration {iteration + 1}: | Best Max Cost: {best_max_cost} | Current Best: {current_best_max_cost} | Average: {current_average} | Total Time: {time.time() - begin_time:.2f}s | Local Dilema: {LOCAL_DILEMA}")
-        # print(f"All Cost: {current_best_cost}")
-        # print(f"Route Ln: {[len(cost) for cost in current_best_solution]}")
+        print(f"Iteration {iteration + 1}: | Best Max Cost: {best_max_cost} | Number Route: {len(current_best_cost)}| Current Best: {current_best_max_cost} | Total Time: {time.time() - begin_time:.2f}s | Local Dilema: {LOCAL_DILEMA}")
+        print(f"All Cost: {current_best_cost}")
+        print(f"Route Ln: {[len(cost) for cost in current_best_solution]}")
 
         # Global pheromone update
         for route in best_solution:
@@ -395,7 +330,7 @@ def main():
     # N, K = map(int, input().split())  # N: customers, K: technicians
     # d = list(map(int, input().split()))  # Maintenance times
     # t = [list(map(int, input().split())) for _ in range(N + 1)]  # Travel times
-    with open("mini_project/test_case/case3.txt") as case_file:    
+    with open("generated_test_cases\large_test.txt") as case_file:    
         lines = case_file.readlines()
         N, K = map(int, lines[1].split())  # N: customers, K: technicians
         d = list(map(int, lines[2].split()))  # Maintenance times
