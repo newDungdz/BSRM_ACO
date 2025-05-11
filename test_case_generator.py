@@ -1,8 +1,46 @@
 import numpy as np
 import random
 import math, os
+import matplotlib.pyplot as plt
 
 tc_folder = "generated_test_cases"
+plot_folder = "generated_plots"
+os.makedirs(plot_folder, exist_ok=True)
+
+def plot_points(coords, filename="depot_customer_plot.png"):
+    """
+    Plot depot and customer points on a 2D scatter plot and save as an image.
+    
+    Parameters:
+    - coords: List of (x, y) tuples for depot + customers. Index 0 is depot.
+    - filename: Name of the file to save the plot (default: depot_customer_plot.png)
+    """
+    x, y = zip(*coords)
+    plt.figure(figsize=(6, 6))
+    
+    # Plot depot (index 0)
+    plt.scatter(x[0], y[0], color='red', marker='s', s=50, label='Depot (0)')
+    # plt.text(x[0] + 1, y[0], '0', color='red')
+    
+    # Plot customers (index 1..N)
+    for i in range(1, len(coords)):
+        plt.scatter(x[i], y[i], color='blue', marker='o', s=20)
+        # plt.text(x[i] + 1, y[i], str(i), color='blue')
+    
+    plt.title("Depot and Customer Locations")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.axis("equal")
+    plt.grid(True)
+    plt.legend()
+    filename = os.path.join(plot_folder, filename)
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300)
+    print(f"Plot saved as '{filename}'")
+    
+    # Close the figure to free memory
+    plt.close()
 
 def generate_test_case(N, K, d_range=(1, 100), t_range=(1, 100), seed=None):
     """
@@ -530,7 +568,8 @@ def generate_geom_test_case(N, K, grid_size=100, d_range=(1, 100), speed=1.0, se
                                  (positions[i][1] - positions[j][1])**2)
                 # Convert to travel time
                 t[i][j] = max(1, int(dist / speed))
-    
+    plot_points(positions)
+
     return {
         "N": N,
         "K": K,
@@ -609,6 +648,7 @@ def generate_clustered_test_case(N, K, num_clusters=3, grid_size=100, d_range=(1
                 # Convert to travel time
                 t[i][j] = max(1, int(dist / speed))
     
+    plot_points(positions)
     return {
         "N": N,
         "K": K,
@@ -616,6 +656,128 @@ def generate_clustered_test_case(N, K, num_clusters=3, grid_size=100, d_range=(1
         "t": t,
         "positions": positions,
         "cluster_centers": cluster_centers
+    }
+
+def generate_mixed_test_case(
+    N, K, cluster_ratio=0.5, num_clusters=3, grid_size=100, 
+    d_range=(1, 100), speed=1.0, depot_strategy="center", seed=None
+):
+    """
+    Generate a VRP test case with a mix of clustered and random customers.
+    
+    Parameters:
+    - N: Total number of customers
+    - K: Number of technicians
+    - cluster_ratio: Fraction of customers to place in clusters
+    - num_clusters: Number of customer clusters
+    - grid_size: Size of the grid
+    - d_range: Range for customer service times
+    - speed: Speed factor to convert distance to travel time
+    - depot_strategy: 'center', 'random', 'outskirt', or 'crowded'
+    - seed: Random seed
+    
+    Returns:
+    - Dictionary containing VRP data
+    """
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+
+    clustered_N = int(N * cluster_ratio)
+    random_N = N - clustered_N
+
+    cluster_centers = []
+    clustered_positions = []
+    random_positions = []
+
+    # Create cluster centers
+    for _ in range(num_clusters):
+        cx = random.uniform(0, grid_size)
+        cy = random.uniform(0, grid_size)
+        cluster_centers.append((cx, cy))
+
+    # Assign customers to clusters
+    customers_per_cluster = clustered_N // num_clusters
+    remaining = clustered_N % num_clusters
+    cluster_sizes = [customers_per_cluster + (1 if i < remaining else 0) for i in range(num_clusters)]
+
+    for i, size in enumerate(cluster_sizes):
+        cx, cy = cluster_centers[i]
+        for _ in range(size):
+            radius = random.uniform(0, grid_size / 10)
+            angle = random.uniform(0, 2 * math.pi)
+            x = max(0, min(grid_size, cx + radius * math.cos(angle)))
+            y = max(0, min(grid_size, cy + radius * math.sin(angle)))
+            clustered_positions.append((x, y))
+
+    # Add random customers
+    for _ in range(random_N):
+        x = random.uniform(0, grid_size)
+        y = random.uniform(0, grid_size)
+        random_positions.append((x, y))
+
+    # Combine all customer positions
+    customer_positions = clustered_positions + random_positions
+
+    # Determine depot position
+    if depot_strategy == "center":
+        depot_pos = (grid_size / 2, grid_size / 2)
+
+    elif depot_strategy == "random":
+        depot_pos = (random.uniform(0, grid_size), random.uniform(0, grid_size))
+
+    elif depot_strategy == "crowded" and cluster_centers:
+        # Choose the most crowded cluster center
+        max_cluster_idx = np.argmax(cluster_sizes)
+        depot_pos = cluster_centers[max_cluster_idx]
+
+    elif depot_strategy == "outskirt":
+        # Divide the map into a 5x5 grid
+        cell_size = grid_size / 5
+        grid_counts = [[0 for _ in range(5)] for _ in range(5)]
+
+        # Count how many customers are in each cell
+        for x, y in customer_positions:
+            col = min(4, int(x / cell_size))
+            row = min(4, int(y / cell_size))
+            grid_counts[row][col] += 1
+
+        # Find cells with lowest density but non-zero
+        min_count = min(c for row in grid_counts for c in row if c > 0)
+        sparse_cells = [(r, c) for r in range(5) for c in range(5) if grid_counts[r][c] == min_count]
+
+        # Choose one of the sparse cells randomly
+        r, c = random.choice(sparse_cells)
+        depot_x = random.uniform(c * cell_size, (c + 1) * cell_size)
+        depot_y = random.uniform(r * cell_size, (r + 1) * cell_size)
+        depot_pos = (depot_x, depot_y)
+
+    else:
+        raise ValueError(f"Unsupported depot_strategy: {depot_strategy}")
+
+    # Combine depot and customers
+    positions = [depot_pos] + customer_positions
+
+    # Generate service times (for customers only)
+    d = [random.randint(d_range[0], d_range[1]) for _ in range(N)]
+
+    # Generate travel time matrix
+    t = np.zeros((N + 1, N + 1), dtype=int)
+    for i in range(N + 1):
+        for j in range(N + 1):
+            if i != j:
+                dx = positions[i][0] - positions[j][0]
+                dy = positions[i][1] - positions[j][1]
+                dist = math.sqrt(dx * dx + dy * dy)
+                t[i][j] = max(1, int(dist / speed))
+    return {
+        "N": N,
+        "K": K,
+        "d": d,
+        "t": t,
+        "positions": positions,
+        "cluster_centers": cluster_centers,
+        "depot_strategy": depot_strategy
     }
 
 def write_test_case_and_solution_to_file(test_data, solution, filename):
@@ -662,26 +824,100 @@ def write_test_case_and_solution_to_file(test_data, solution, filename):
             f.write(f"{Lk}\n")
             f.write(" ".join(map(str, route)) + "\n")
 
+def generate(N , K):
+    def calculate_controlled_num_clusters(N, cluster_ratio, 
+                                        min_avg_cust_per_cluster=3,
+                                        sqrt_factor_min=0.6, 
+                                        sqrt_factor_max=1.4):
+        """
+        Calculates the number of clusters in a controlled way.
+
+        It aims for a number of clusters proportional to the square root of the 
+        number of clustered customers, while also ensuring clusters are not too sparse
+        (based on min_avg_cust_per_cluster) and handling edge cases.
+
+        Parameters:
+        - N: Total number of customers.
+        - cluster_ratio: Fraction of customers to place in clusters.
+        - min_avg_cust_per_cluster: Desired minimum average customers per cluster.
+                                    This helps prevent clusters from being too sparse. (e.g., 3-5)
+        - sqrt_factor_min: Multiplier for the lower bound based on sqrt(clustered_N) (e.g., 0.6).
+        - sqrt_factor_max: Multiplier for the upper bound based on sqrt(clustered_N) (e.g., 1.4).
+
+        Returns:
+        - int: The number of clusters.
+        """
+        if N == 0:
+            return 0  # No customers, so no clusters
+
+        clustered_N = int(N * cluster_ratio)
+
+        if clustered_N == 0:
+            return 0  # No customers designated for clustering
+
+        # If fewer customers are to be clustered than the minimum desired per cluster,
+        # and there are customers to cluster, put them all in one cluster.
+        if 0 < clustered_N < min_avg_cust_per_cluster:
+            return 1
+
+        # Base number of clusters around sqrt of the number of clustered customers
+        sqrt_clustered_N = math.sqrt(clustered_N)
+        
+        min_potential_clusters = math.floor(sqrt_clustered_N * sqrt_factor_min)
+        max_potential_clusters = math.ceil(sqrt_clustered_N * sqrt_factor_max)
+
+        # Cap the maximum number of clusters to ensure clusters aren't too sparse
+        # (each cluster having at least min_avg_cust_per_cluster on average).
+        # If min_avg_cust_per_cluster is 0 or negative, this cap is effectively disabled.
+        if min_avg_cust_per_cluster > 0:
+            cap_max_by_density = clustered_N // min_avg_cust_per_cluster
+            # Ensure cap is at least 1 if there are customers to cluster
+            cap_max_by_density = max(1, cap_max_by_density) 
+        else: 
+            # No density constraint, so at most, one customer per cluster
+            cap_max_by_density = clustered_N 
+
+        # Determine the actual maximum number of clusters
+        # It's the minimum of the sqrt-based upper bound, the density cap, and total clustered customers.
+        actual_max_clusters = min(max_potential_clusters, cap_max_by_density)
+        actual_max_clusters = min(actual_max_clusters, clustered_N) # Cannot have more clusters than points
+        actual_max_clusters = max(1, actual_max_clusters) # Must be at least 1 cluster if clustered_N > 0
+
+        # Determine the actual minimum number of clusters
+        actual_min_clusters = max(1, min_potential_clusters)
+        # Ensure min_clusters is not greater than max_clusters (can happen if caps are restrictive)
+        actual_min_clusters = min(actual_min_clusters, actual_max_clusters) 
+
+        return random.randint(actual_min_clusters, actual_max_clusters)
+    seed = random.randint(1, 1000)
+    cluster_ratio = random.uniform(0.1, 0.9)
+    num_clusters = calculate_controlled_num_clusters(N, cluster_ratio)
+    depot_strategy = random.choice(['outskirt', 'crowded'])
+    print(f"Generating test case with N={N}, K={K}, cluster_ratio={cluster_ratio}, num_clusters={num_clusters}, depot_strategy={depot_strategy}, seed={seed}")
+    test_case = generate_mixed_test_case(
+        N=N, K=K, cluster_ratio=cluster_ratio, num_clusters=num_clusters,
+        grid_size=100, d_range=(1, 100), speed=1.0, depot_strategy=depot_strategy, seed=seed
+    )
+    solution = solve_min_max_algorithm(test_case)
+    write_test_case_and_solution_to_file(test_case, solution, f"solution_{N}_{K}_{depot_strategy}.txt")
+    plot_points(test_case["positions"], filename=f"test_case_{N}_{K}_{depot_strategy}.png")
+
 # Example usage
 if __name__ == "__main__":
     # Small test case
-    small_test = generate_test_case(N=10, K=3, d_range=(1, 20), t_range=(5, 30), seed=42)
-    
-    # Medium test case
-    medium_test = generate_test_case(N=50, K=5, d_range=(10, 100), t_range=(10, 50), seed=43)
-    
-    # Large test case
-    large_test = generate_test_case(N=200, K=10, d_range=(20, 200), t_range=(20, 100), seed=44)
-    
-    # Geometric test case
-    geo_test = generate_geom_test_case(N=30, K=5, grid_size=100, d_range=(10, 50), speed=1.0, seed=45)
-    
-    # Clustered test case
-    clustered_test = generate_clustered_test_case(N=100, K=8, num_clusters=5, grid_size=200, 
-                                               d_range=(10, 50), speed=2.0, seed=46)
-    
-    write_test_case_and_solution_to_file(small_test, solve_greedy(small_test), "small_test.txt")
-    write_test_case_and_solution_to_file(medium_test, solve_nearest_neighbor(medium_test), "medium_test.txt")
-    write_test_case_and_solution_to_file(large_test, solve_nearest_neighbor(large_test), "large_test.txt")
-    write_test_case_and_solution_to_file(geo_test, solve_min_max_algorithm(geo_test), "geo_test.txt")
-    write_test_case_and_solution_to_file(clustered_test, solve_min_max_algorithm(clustered_test), "clustered_test.txt")
+    # depot_strategy: 'center', 'random', 'outskirt', or 'crowded'
+    N_list = [5, 10, 20, 50, 100, 200, 500, 700, 900, 1000]
+    K_div_list = [10, 20]
+    for N in N_list:
+        if N <= 10:
+            K = N // 2
+            generate(N, K)
+        elif N <= 100:
+            K = N // 10
+            generate(N, K)
+        else:
+            for K_div in K_div_list:
+                K = N // K_div
+                generate(N, K)
+    # test_case = generate_mixed_test_case(N=200, K=10, cluster_ratio=0.6, num_clusters=5, depot_strategy='random', seed=123)
+    # write_test_case_and_solution_to_file(test_case, solve_min_max_algorithm(test_case), "clustered_test.txt")

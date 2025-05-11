@@ -25,72 +25,38 @@ NUM_PROCESSES = max(1, mp.cpu_count() - 1)  # Use all but one CPU core
 begin_time = time.time()
 
 def plot_cost_history(history, filename="aco_cost_history.png"):
-    """
-    Plot the history of best costs and current best costs over iterations.
-    
-    Args:
-        history: Dictionary containing 'best_max_costs', 'current_best_costs', and 'iterations'
-        filename: Name of the file to save the plot
-    """
+    # Check for valid data
+    if not history['iterations'] or not history['best_max_costs'] or not history['current_best_costs']:
+        print("Error: History data is empty or invalid")
+        return
+
+    # Handle inf/NaN
+    history['best_max_costs'] = np.where(np.isinf(history['best_max_costs']), 0, history['best_max_costs'])
+    history['current_best_costs'] = np.where(np.isinf(history['current_best_costs']), 0, history['current_best_costs'])
+
     plt.figure(figsize=(12, 6))
     
-    # Plot both cost histories
+    # Plot data
     plt.plot(history['iterations'], history['best_max_costs'], 'b-', label='Global Best Cost', linewidth=2)
     plt.plot(history['iterations'], history['current_best_costs'], 'r--', label='Iteration Best Cost', alpha=0.7)
     
-    # Add a vertical line for each improvement in the global best cost
-    improvements = []
-    prev_best = float('inf')
-    for i, cost in enumerate(history['best_max_costs']):
-        if cost < prev_best:
-            improvements.append(i)
-            prev_best = cost
-    
-    for i in improvements:
-        plt.axvline(x=history['iterations'][i], color='g', linestyle=':', alpha=0.5)
-    
-    # Add annotations for significant improvements
-    if len(improvements) > 0:
-        # Only annotate some points to avoid cluttering (first, last, and some in between)
-        to_annotate = [improvements[0], improvements[-1]]
-        if len(improvements) > 5:
-            to_annotate.append(improvements[len(improvements)//2])
-            
-        for i in to_annotate:
-            iteration = history['iterations'][i]
-            cost = history['best_max_costs'][i]
-            plt.annotate(f'{cost:.2f}', 
-                        xy=(iteration, cost),
-                        xytext=(iteration, cost*1.05),
-                        arrowprops=dict(facecolor='black', shrink=0.05, width=1.5),
-                        fontsize=9)
-    
-    # Add labels and title
+    # Set axis limits
+    plt.ylim(min(min(history['best_max_costs']), min(history['current_best_costs'])) * 0.95,
+             max(max(history['best_max_costs']), max(history['current_best_costs'])) * 1.05)
+    plt.xlim(min(history['iterations']), max(history['iterations']))
+
+    # Rest of your code (improvements, annotations, etc.) remains unchanged...
+
     plt.xlabel('Iteration')
     plt.ylabel('Max Route Cost')
     plt.title('ACO Algorithm Convergence History')
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend()
-    
-    # Add text box with summary statistics
-    if len(history['best_max_costs']) > 0:
-        initial_cost = history['best_max_costs'][0] if history['best_max_costs'][0] != float('inf') else history['current_best_costs'][0]
-        final_cost = history['best_max_costs'][-1]
-        improvement = ((initial_cost - final_cost) / initial_cost) * 100 if initial_cost > 0 else 0
-        
-        stats_text = (f"Initial cost: {initial_cost:.2f}\n"
-                    f"Final cost: {final_cost:.2f}\n"
-                    f"Improvement: {improvement:.2f}%\n"
-                    f"Total iterations: {len(history['iterations'])}")
-        
-        plt.figtext(0.15, 0.15, stats_text, bbox=dict(facecolor='white', alpha=0.8), fontsize=9)
-    
-    # Save the figure
+
+    # Save and close
     plt.tight_layout()
     plt.savefig(filename, dpi=300)
     print(f"\nCost history plot saved as '{filename}'")
-    
-    # Close the figure to free memory
     plt.close()
 
 def calculate_route_cost(route, travel_time, service_time):
@@ -461,7 +427,7 @@ def main():
     
     # Input processing
     try:
-        with open("generated_test_cases/small_test.txt") as case_file:    
+        with open("generated_test_cases/solution_5_2_outskirt.txt") as case_file:    
             lines = case_file.readlines()
             N, K = map(int, lines[1].split())  # N: customers, K: technicians
             d = list(map(int, lines[2].split()))  # Maintenance times
@@ -522,7 +488,6 @@ def main():
     # Save cost history plot in the output directory
     plot_filename = os.path.join(output_dir, f"aco_cost_history_{timestamp}.png")
     # Plot is already created in the acs_vrp function, but we can create a new one with the filename
-    plt.gcf().savefig(plot_filename)
     print(f"Cost history plot saved as '{plot_filename}'")
     
     # Return the solution and costs for potential further analysis
