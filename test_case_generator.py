@@ -3,8 +3,8 @@ import random
 import math, os
 import matplotlib.pyplot as plt
 
-tc_folder = "generated_test_cases"
-plot_folder = "generated_plots"
+tc_folder = "all_random_testcase\\test_case"
+plot_folder = "all_random_testcase\\plots"
 os.makedirs(plot_folder, exist_ok=True)
 
 def plot_points(coords, filename="depot_customer_plot.png"):
@@ -668,8 +668,8 @@ def generate_mixed_test_case(
     Parameters:
     - N: Total number of customers
     - K: Number of technicians
-    - cluster_ratio: Fraction of customers to place in clusters
-    - num_clusters: Number of customer clusters
+    - cluster_ratio: Fraction of customers to place in clusters (0 for all random)
+    - num_clusters: Number of customer clusters (ignored if cluster_ratio=0)
     - grid_size: Size of the grid
     - d_range: Range for customer service times
     - speed: Speed factor to convert distance to travel time
@@ -679,6 +679,7 @@ def generate_mixed_test_case(
     Returns:
     - Dictionary containing VRP data
     """
+    
     if seed is not None:
         random.seed(seed)
         np.random.seed(seed)
@@ -690,25 +691,27 @@ def generate_mixed_test_case(
     clustered_positions = []
     random_positions = []
 
-    # Create cluster centers
-    for _ in range(num_clusters):
-        cx = random.uniform(0, grid_size)
-        cy = random.uniform(0, grid_size)
-        cluster_centers.append((cx, cy))
+    # Create cluster centers and clustered customers only if cluster_ratio > 0
+    if cluster_ratio > 0 and num_clusters > 0:
+        # Create cluster centers
+        for _ in range(num_clusters):
+            cx = random.uniform(0, grid_size)
+            cy = random.uniform(0, grid_size)
+            cluster_centers.append((cx, cy))
 
-    # Assign customers to clusters
-    customers_per_cluster = clustered_N // num_clusters
-    remaining = clustered_N % num_clusters
-    cluster_sizes = [customers_per_cluster + (1 if i < remaining else 0) for i in range(num_clusters)]
+        # Assign customers to clusters
+        customers_per_cluster = clustered_N // num_clusters
+        remaining = clustered_N % num_clusters
+        cluster_sizes = [customers_per_cluster + (1 if i < remaining else 0) for i in range(num_clusters)]
 
-    for i, size in enumerate(cluster_sizes):
-        cx, cy = cluster_centers[i]
-        for _ in range(size):
-            radius = random.uniform(0, grid_size / 10)
-            angle = random.uniform(0, 2 * math.pi)
-            x = max(0, min(grid_size, cx + radius * math.cos(angle)))
-            y = max(0, min(grid_size, cy + radius * math.sin(angle)))
-            clustered_positions.append((x, y))
+        for i, size in enumerate(cluster_sizes):
+            cx, cy = cluster_centers[i]
+            for _ in range(size):
+                radius = random.uniform(0, grid_size / 10)
+                angle = random.uniform(0, 2 * math.pi)
+                x = max(0, min(grid_size, cx + radius * math.cos(angle)))
+                y = max(0, min(grid_size, cy + radius * math.sin(angle)))
+                clustered_positions.append((x, y))
 
     # Add random customers
     for _ in range(random_N):
@@ -728,8 +731,12 @@ def generate_mixed_test_case(
 
     elif depot_strategy == "crowded" and cluster_centers:
         # Choose the most crowded cluster center
-        max_cluster_idx = np.argmax(cluster_sizes)
-        depot_pos = cluster_centers[max_cluster_idx]
+        if cluster_sizes:
+            max_cluster_idx = np.argmax(cluster_sizes)
+            depot_pos = cluster_centers[max_cluster_idx]
+        else:
+            # Fallback to center if no clusters (all random case)
+            depot_pos = (grid_size / 2, grid_size / 2)
 
     elif depot_strategy == "outskirt":
         # Divide the map into a 5x5 grid
@@ -743,8 +750,17 @@ def generate_mixed_test_case(
             grid_counts[row][col] += 1
 
         # Find cells with lowest density but non-zero
-        min_count = min(c for row in grid_counts for c in row if c > 0)
+        min_count = float('inf')
+        for row in grid_counts:
+            for c in row:
+                if 0 < c < min_count:
+                    min_count = c
+        
         sparse_cells = [(r, c) for r in range(5) for c in range(5) if grid_counts[r][c] == min_count]
+        
+        # If no sparse cells (very unlikely), choose any cell
+        if not sparse_cells:
+            sparse_cells = [(r, c) for r in range(5) for c in range(5)]
 
         # Choose one of the sparse cells randomly
         r, c = random.choice(sparse_cells)
@@ -890,16 +906,18 @@ def generate(N , K):
 
         return random.randint(actual_min_clusters, actual_max_clusters)
     seed = random.randint(1, 1000)
-    cluster_ratio = random.uniform(0.1, 0.9)
+    # cluster_ratio = random.uniform(0.1, 0.9)
+    cluster_ratio = 0
     num_clusters = calculate_controlled_num_clusters(N, cluster_ratio)
-    depot_strategy = random.choice(['outskirt', 'crowded'])
+    # depot_strategy = random.choice(['outskirt', 'crowded'])
+    depot_strategy = 'random'
     print(f"Generating test case with N={N}, K={K}, cluster_ratio={cluster_ratio}, num_clusters={num_clusters}, depot_strategy={depot_strategy}, seed={seed}")
     test_case = generate_mixed_test_case(
         N=N, K=K, cluster_ratio=cluster_ratio, num_clusters=num_clusters,
         grid_size=100, d_range=(1, 100), speed=1.0, depot_strategy=depot_strategy, seed=seed
     )
     solution = solve_min_max_algorithm(test_case)
-    write_test_case_and_solution_to_file(test_case, solution, f"solution_{N}_{K}_{depot_strategy}.txt")
+    write_test_case_and_solution_to_file(test_case, solution, f"testcase_{N}_{K}_{depot_strategy}.txt")
     plot_points(test_case["positions"], filename=f"test_case_{N}_{K}_{depot_strategy}.png")
 
 # Example usage
