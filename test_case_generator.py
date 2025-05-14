@@ -3,8 +3,14 @@ import random
 import math, os
 import matplotlib.pyplot as plt
 
-tc_folder = "all_random_testcase\\test_case"
-plot_folder = "all_random_testcase\\plots"
+root_folder = "all_random_testcase"
+
+tc_folder = f"{root_folder}\\test_case"
+output_folder = f"{root_folder}\\output"
+plot_folder = f"{root_folder}\\plots"
+
+os.makedirs(tc_folder, exist_ok=True)
+os.makedirs(output_folder, exist_ok=True)
 os.makedirs(plot_folder, exist_ok=True)
 
 def plot_points(coords, filename="depot_customer_plot.png"):
@@ -509,6 +515,10 @@ def write_solution_to_file(routes, filename):
     - filename: Name of the output file
     """
     K = len(routes)
+    # Create the directory if it doesn't exist
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+    filename = os.path.join(output_folder, filename)
     
     with open(filename, 'w') as f:
         # Write K
@@ -906,7 +916,7 @@ def generate(N , K):
 
         return random.randint(actual_min_clusters, actual_max_clusters)
     seed = random.randint(1, 1000)
-    # cluster_ratio = random.uniform(0.1, 0.9)
+    # cluster_ratio = random.uniform(0.6, 0.9)
     cluster_ratio = 0
     num_clusters = calculate_controlled_num_clusters(N, cluster_ratio)
     # depot_strategy = random.choice(['outskirt', 'crowded'])
@@ -917,7 +927,8 @@ def generate(N , K):
         grid_size=100, d_range=(1, 100), speed=1.0, depot_strategy=depot_strategy, seed=seed
     )
     solution = solve_min_max_algorithm(test_case)
-    write_test_case_and_solution_to_file(test_case, solution, f"testcase_{N}_{K}_{depot_strategy}.txt")
+    write_test_to_file(test_case,  f"testcase_{N}_{K}_{depot_strategy}.txt")
+    write_solution_to_file(solution, f"solution_{N}_{K}_{depot_strategy}.txt")
     plot_points(test_case["positions"], filename=f"test_case_{N}_{K}_{depot_strategy}.png")
 
 # Example usage
